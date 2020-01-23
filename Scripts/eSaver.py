@@ -186,5 +186,5 @@ class eSaver:
 		self.Timer.par.start.pulse()
 
 	def AutoSaveNow(self):
-		self.Saveallbackuponly()
+		self.Savechangedcomps()
 

@@ -30,6 +30,7 @@ def onProjectPreSave():
 	return
 
 def onProjectPostSave():
+	parent().Savechangedcomps()
 	return
 
 	
