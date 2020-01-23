@@ -3,7 +3,7 @@ A tool for externalizing your tox files.
 
 
 ## Usage
-Bring "External-Tox-Saver.tox" into your project. It should immediately search for comps with the tag EXTERNALTOX. 
+Bring "Release/External-Tox-Saver.tox" into your project. It should immediately search for comps with the tag EXTERNALTOX. 
 If this is the first time you've opened it, you can start externalizing your tox files.
 
 #Externalizing Tox Files
