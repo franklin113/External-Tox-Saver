@@ -104,7 +104,11 @@ class eSaver:
 
 	def Rebuildtoxlist(self):
 		compsWithTag = self.myOp.parent().findChildren(tags=[self.toxTag])
-		self.ToxLibrary = [self.GetRelativePath(x) for x in compsWithTag]
+		self.ToxLibrary.clear()
+		newToxPaths = [self.GetRelativePath(x) for x in compsWithTag]
+		
+		[self.ToxLibrary.append(x) for x in newToxPaths]
+
 		if self.myOp.par.Debug:
 			print("Found Operators with tag: ", self.toxTag)
 			for i in self.ToxLibrary:
@@ -119,8 +123,9 @@ class eSaver:
 		return self.myOp.relativePath(opObject)
 
 	def Cleartoxlist(self):
+		self.Debug("Clearing tox list: ")
 		self.ToxLibrary.clear()
-
+		
 	def Debug(self,*args):
 		if self.myOp.par.Debug:
 			print('Tox Saver Debug: ', *args)
