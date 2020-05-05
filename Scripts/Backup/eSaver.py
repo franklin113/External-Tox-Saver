@@ -36,76 +36,96 @@ class eSaver:
 		self.ToxLibrary = self.stored['ExternalToxs']
 
 		self.Timer = self.myOp.op('timer1')
+		self.toxTag = 'EXTERNALTOX'
+		
+		self.Rebuildtoxlist()
 
 		#self.myOp.fetch('ToxLibrary',[],storeDefault = True)
 
 
 
-	def BuildDirectory(self,baseOp = None) -> tuple : 
-		if baseOp:
-			relPath = baseOp#self.myOp.relativePath(baseOp)
+	def BuildDirectory(self,baseOpPath : str) -> tuple : 
+		# baseOpPath should be a relative path from the saver comp
+
+		assert type(baseOpPath) == str, "Passed an operator object into Build Directory method. String Expected."
+
+		if baseOpPath:
+			relPath = baseOpPath#self.myOp.relativePath(baseOp)
 			path = self.DefaultPath+ relPath
-		else:
-			relPath = self.myOp.relativePath(self._ExternalOp)
-			path = self.DefaultPath+ relPath
-			
-		
+
 		try:
 			os.makedirs(path + '/Backup')
 			self.Debug("Building path here: '", path,"'")
 
-			#os.makedirs(path)
 		except FileExistsError:
 			pass
+
 		return (path,relPath)
 
-	def SaveTox(self, path,baseOP=None):
+	def SaveTox(self, path,baseOP):
 		# baseOP is an op object
-		if baseOP:
-			try:
-				baseOP.save(path)
-			except Exception as e:
-				debug(e)			
-		else:
-			self._ExternalOp.save(path)
-
+		try:
+			baseOP.save(path)
+		except Exception as e:
+			debug(e)			
 
 	def Externalize(self):
-		assert self._ExternalOp, "Error Externalizing: Invalid path to op"
-		self.Debug("Externalizing Tox", self.ExternalOpPar.val)
+		extOp = self.ExternalOpPar.eval()
+		assert extOp, "Error Externalizing: Invalid path to op"
 		
-		paths = self.BuildDirectory()
+		self.Debug("Externalizing Tox", extOp)
+		
+		paths = self.BuildDirectory(self.GetRelativePath(extOp))
 		
 		filepath = paths[0]
 		relPath = paths[1]
 		
-		self.Saveincremental(relPath)
-		self.MarkExternal(filepath)
+		self.SaveIncremental(relPath)
+		self.MarkExternal(extOp,filepath)
 
 		tempSet = set(self.ToxLibrary)
 
 		if relPath not in tempSet:
 			self.ToxLibrary.append(relPath)
 
+	def MarkExternal(self,externalOp : op, path):
 		
+		externalOp.tags.add(self.toxTag)
+		externalOp.color = (0,.05,.6)
+		externalOp.par.externaltox = path
+		externalOp.par.savebackup = False
+		externalOp.par.reloadtoxonstart = self.myOp.par.Reloadtoxonstart.eval()
+		externalOp.par.reloadbuiltin = self.myOp.par.Reloadbuiltin.eval()
+		externalOp.par.reloadcustom = self.myOp.par.Reloadcustom.eval()
 
-		#self.Debug("Added Item to Tox Library: ")
+	def FindDirtyComps(self):
+		dirtyOps = self.myOp.parent().findChildren(tags = [self.toxTag], key = lambda x: x.dirty)
+		return dirtyOps
 
-	def MarkExternal(self,path):
-		self._ExternalOp.tags = ['TOX']
-		self._ExternalOp.color = (0,.05,.6)
-		self._ExternalOp.par.externaltox = path
-		self._ExternalOp.par.savebackup = self.myOp.par.Savebackup.eval()
-		self._ExternalOp.par.reloadtoxonstart = self.myOp.par.Reloadtoxonstart.eval()
-		self._ExternalOp.par.reloadbuiltin = self.myOp.par.Reloadbuiltin.eval()
-		self._ExternalOp.par.reloadcustom = self.myOp.par.Reloadcustom.eval()
+	def Rebuildtoxlist(self):
+		compsWithTag = self.myOp.parent().findChildren(tags=[self.toxTag])
+		self.ToxLibrary.clear()
+		newToxPaths = [self.GetRelativePath(x) for x in compsWithTag]
+		
+		[self.ToxLibrary.append(x) for x in newToxPaths]
 
-	def GetRelativePath(self):
-		return self.myOp.relativePath(self._ExternalOp)
+		if self.myOp.par.Debug:
+			print("Found Operators with tag: ", self.toxTag)
+			for i in self.ToxLibrary:
+				print(i)
+
+	def Printdirtycomps(self):
+		print("Found the below comps to be dirty: ")
+		for i in self.FindDirtyComps():
+			print(i)
+
+	def GetRelativePath(self,opObject : op):
+		return self.myOp.relativePath(opObject)
 
 	def Cleartoxlist(self):
+		self.Debug("Clearing tox list: ")
 		self.ToxLibrary.clear()
-
+		
 	def Debug(self,*args):
 		if self.myOp.par.Debug:
 			print('Tox Saver Debug: ', *args)
@@ -115,65 +135,56 @@ class eSaver:
 		timeString = now.strftime("---%m-%d-%Y--%H-%M-%S")
 		return timeString
 
-	def Saveincremental(self,baseOpPath,backupOnly = False):
+	def SaveIncremental(self,baseOpPath,backupOnly = False):
 
 		timestamp = self.GetTimestamp()
 
 		baseOp = self.myOp.parent().op(baseOpPath)
 
-		if baseOp:
-			fullPath = self.BuildDirectory(baseOpPath)[0]
+		assert baseOp, "Operator passed to SaveIncremental does not exist."
 
-			fullPathWithFilename = fullPath + '/' + baseOp.name + '.tox'
-			fullBackupPathWithTimestamp = fullPath + '/Backup/' + baseOp.name + timestamp + '.tox'
-			try:
+		fullPath = self.BuildDirectory(baseOpPath)[0]
 
-				if backupOnly == False:
-					print("Save Location: ", fullPathWithFilename)
+		fullPathWithFilename = fullPath + '/' + baseOp.name + '.tox'
+		fullBackupPathWithTimestamp = fullPath + '/Backup/' + baseOp.name + timestamp + '.tox'
+		try:
 
-					self.SaveTox(fullPathWithFilename,baseOp)			# save the base
+			if backupOnly == False:
+				self.SaveTox(fullPathWithFilename,baseOp)			# save the base
+				self.Debug("Save Location: ", fullPathWithFilename)
 
-				print("Backup Location: ", fullBackupPathWithTimestamp)
-				self.SaveTox(fullBackupPathWithTimestamp,baseOp)	# save a copy to the backup folder
-				self.Debug("Successfuly saved primary and backup tox files: ", baseOp)
-			except Exception as e:
-				self.Debug("Error Saving the tox: \n\n", e)
+
+			self.Debug("Backup Location: " + fullPath + '/Backup/')
+			self.SaveTox(fullBackupPathWithTimestamp,baseOp)	# save a copy to the backup folder
+			self.Debug("Saved Tox Files: ", baseOp)
+		except Exception as e:
+			self.Debug("Error Saving the tox: \n\n", e)
 
 	def Saveallcomps(self):
 
 		for i in self.ToxLibrary:
 			
-			self.Saveincremental(i)
+			self.SaveIncremental(i)
 
 	def Savechangedcomps(self):
-		self.Debug("Comps that have unsaved changes: ----")
 		
 		for i in self.ToxLibrary:
 			curOp = self.myOp.parent().op(i)
 			if curOp != None:
 				try:
 					if curOp.dirty:
-						print("Showing",curOp.path)
-						self.Saveincremental(i)
+						self.Debug("Saving: ",curOp.path)
+						self.SaveIncremental(i)
 				except Exception as e:
 					self.Debug("While Saved Changed Comps: ",e)
 
-	def Saveallbackuponly(self):
-		for i in self.ToxLibrary:
-			self.Saveincremental(i,backupOnly=True)
+	# def Saveallbackuponly(self):
+	# 	for i in self.ToxLibrary:
+	# 		self.SaveIncremental(i,backupOnly=True)
 
 	def StartAutoSave(self):
 		self.Timer.par.start.pulse()
 
 	def AutoSaveNow(self):
-		self.Saveallbackuponly()
+		self.Savechangedcomps()
 
-	@property
-	def _ExternalOp(self):
-		thisOp = None
-		try:
-			thisOp = self.ExternalOpPar.eval()
-		except:
-			print("Op Error: Op does not exist")
-		
-		return thisOp

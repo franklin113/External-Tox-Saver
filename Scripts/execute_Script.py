@@ -27,10 +27,11 @@ def onDeviceChange():
 	return
 
 def onProjectPreSave():
+	parent().Save()
 	return
 
 def onProjectPostSave():
-	parent().Savechangedcomps()
+	
 	return
 
 	
