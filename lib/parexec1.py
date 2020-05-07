@@ -30,6 +30,12 @@ def onPulse(par):
 		
 	elif par.name == 'Deletebackups':
 		parent().DeleteBackups()
+		
+	elif par.name == 'Generatethumbs':
+		parent().GenerateThumbs()
+	
+	elif par.name == 'Clearthumbs':
+		parent().ClearThumbs()
 	
 	
 	return

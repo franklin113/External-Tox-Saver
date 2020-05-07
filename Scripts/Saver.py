@@ -70,7 +70,7 @@ class Saver:
 				if os.path.basename(backupPath) != targetOp.name:
 					backupPath = os.path.join(backupPath, targetOp.name)
 				# put backups into the Tox\Backup folder
-				backupPath = os.path.join(os.path.join('Tox','Backup'), backupPath)
+				backupPath = os.path.join(os.path.join(self.myOp.par.Savefoldername.val,'Backup'), backupPath)
 
 				name, fileExt = os.path.splitext(backupFilename)		# get name and file extension
 
@@ -133,13 +133,13 @@ class Saver:
 		for i in togglePars:
 			i.val = val
 
-	def DetermineToxPaths(self, opToExternalize):
+	def DetermineOpPaths(self, opToExternalize):
 		# set external tox par
 		fileExtension = '.tox'
 
 		# Build a valid relative directory
 		relativeDirectory, filename = os.path.split(parent().relativePath(opToExternalize))
-		relativeDirectory = os.path.join('Tox',relativeDirectory)
+		relativeDirectory = os.path.join(self.myOp.par.Savefoldername.val,relativeDirectory)
 		# if Hasnochildren tag is present, we will NOT add this comp's name as a directory
 		if self.myOp.par.Hasnochildrentag.eval() not in opToExternalize.tags:
 			relativeDirectory = os.path.join(relativeDirectory, opToExternalize.name)	# the tox itself is a directory
@@ -161,59 +161,68 @@ class Saver:
 
 		return absFolderpath, absSaveFilepath, relativeDirectory, relativeFilePath
 
-	def ExternalizeToxes(self, removeToxes=False):
+	def ExternalizeOps(self, removeToxes=False):
 		# find & loop thru ops that haven't been externalized yet
 
-		opsToExternalize = self.myOp.parent().findChildren(type=COMP, key=lambda x: self.IsEligibleToBeExternalized(x))
+		compsToExternalize = self.myOp.parent().findChildren(type=COMP, key=lambda x: self.IsOpEligibleToBeExternalized(x, 'comp'))
+		datsToExternalize = self.myOp.parent().findChildren(type=DAT, key=lambda x: self.IsOpEligibleToBeExternalized(x, 'dat'))
+
+		opsToExternalize = compsToExternalize + datsToExternalize
+
+		print(opsToExternalize)
 		
 		for i in opsToExternalize:
 			
-			absFolderpath, saveFilepath, relativeDirectory, relativeFilePath = self.DetermineToxPaths(i)
+			absFolderpath, saveFilepath, relativeDirectory, relativeFilePath = self.DetermineOpPaths(i)
 			
 			try:
 				os.makedirs(absFolderpath)
 			except FileExistsError:
 				pass
 
-			# save out tox file
-			i.par.externaltox = relativeFilePath
-			i.save(saveFilepath)
+			if i.type == 'base' or i.type == 'container':
+				# save out tox file
+				i.par.externaltox = relativeFilePath
+				i.save(saveFilepath)
 
-			i.par.reloadbuiltin.val = False
-			i.par.savebackup.val = False
+				i.par.reloadbuiltin.val = False
+				i.par.savebackup.val = False
 
-		# now that all new ops have been externalized, find all externalized toxes & Save them
+			else:
+				i.par.file = relativeFilePath
+				i.save(saveFilepath)
+
+				i.par.syncfile = True
+
+		# now that all new ops have been externalized, find all externalized toxes
 		if not removeToxes:
-			self.FindExternalToxes()
+			self.FindExternalOps()
 		else:
 			pass
 
-		#self.Save()
-
-	def IsEligibleToBeExternalized(self, opToTest):
-		return all((
-			opToTest.par.externaltox.eval() == '', 
-			self.myOp.par.Externalizetag.eval() in opToTest.tags
+	def IsOpEligibleToBeExternalized(self, opToTest, compType):
+		print(compType)
+		if compType =='comp':
+			return all((
+				opToTest.par.externaltox.eval() == '',
+				self.myOp.par.Toxtag.eval() in opToTest.tags
+			))
+		else:
+			return all((
+				#opToTest.par.file.eval() == '', 
+				#self.myOp.par.Dattag.eval() in opToTest.tags
 			))
 
-	def UnexternalizeToxes(self):
+	def UnexternalizeOps(self):
 		opsToUnexternalize = self.myOp.parent().findChildren(type=COMP, key=lambda x: x.par.externaltox.eval() != '')
 
 		for i in opsToUnexternalize:
-			i.par.externaltox = ''
-
-			#### having issues in this block... 
-			# remove files/folders
-			#try:
-				#os.remove(self.DetermineToxPaths(i)[1])
-				#shutil.rmtree(self.DetermineToxPaths(i)[0], ignore_errors=True)
-			#except (FileNotFoundError, PermissionError) as e:
-			#	continue			
+			i.par.externaltox = ''	
 
 		self.ClearOpPars()
 		self.myOp.unstore('*')
 
-	def FindExternalToxes(self):
+	def FindExternalOps(self):
 		externalOps = self.myOp.parent().findChildren(type=COMP, key=lambda x: x.par.externaltox.eval() != '')
 		
 		self.Tox = externalOps
@@ -249,11 +258,11 @@ class Saver:
 
 	@property
 	def Tox(self):
-		tox = self.myOp.fetch('externalToxes',tuple(),storeDefault=True)
+		tox = self.myOp.fetch('externalOps',tuple(),storeDefault=True)
 		return tox
 		
 	@Tox.setter
 	def Tox(self, val):
 		assert type(val) == list, 'incorrect type assigned to Tox'
-		self.myOp.store('externalToxes', val)
+		self.myOp.store('externalOps', val)
 		
